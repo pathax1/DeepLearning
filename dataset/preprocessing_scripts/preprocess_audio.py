@@ -1,11 +1,10 @@
 # preprocess_audio.py
-# This script preprocesses audio files for the Deepfake project by normalizing audio data and converting it to a standard format.
+# Recursively processes all .flac files in subfolders, converts to .wav, and saves in a structured output directory.
 
 import os
 import librosa
 import soundfile as sf
 from tqdm import tqdm
-
 
 class AudioPreprocessor:
     def __init__(self, input_folder, output_folder, target_sr=22050):
@@ -13,39 +12,51 @@ class AudioPreprocessor:
         self.output_folder = output_folder
         self.target_sr = target_sr  # Standard sampling rate for audio
 
-        # Create output folder if it doesn't exist
+        # Ensure output directory exists
         os.makedirs(self.output_folder, exist_ok=True)
 
-    # Method to preprocess a single audio file
-    def preprocess_audio_file(self, audio_path, output_path):
-        # Load audio file and resample
+    def preprocess_audio(self, audio_path, output_path):
+        """ Loads audio, normalizes it, and saves as a .wav file. """
         audio, sr = librosa.load(audio_path, sr=self.target_sr)
-        # Normalize audio
         audio = librosa.util.normalize(audio)
-        # Save preprocessed audio as WAV
         sf.write(output_path, audio, self.target_sr)
 
-    # Method to preprocess entire dataset
     def preprocess_dataset(self):
-        audio_files = [
-            file for file in os.listdir(self.input_folder)
-            if file.lower().endswith(('.mp3', '.wav'))
-        ]
+        """ Recursively finds all .flac files and converts them to .wav while preserving subfolder structure. """
+        audio_files = []
 
-        # Create output folder if it doesn't exist
-        if not os.path.exists(self.output_folder):
-            os.makedirs(self.output_folder)
+        print(f"Scanning directory: {self.input_folder}")
 
-        for audio_file in tqdm(audio_files, desc="Processing Audio Files"):
-            input_path = os.path.join(self.input_folder, audio_file)
-            output_file = os.path.splitext(audio_file)[0] + ".wav"
-            output_path = os.path.join(self.output_folder, output_file)
-            self.preprocess_audio(input_path, output_path)
+        # Walk through all subdirectories to collect .flac files
+        for root, _, files in os.walk(self.input_folder):
+            for file in files:
+                if file.lower().endswith('.flac'):
+                    full_path = os.path.join(root, file)
+                    audio_files.append(full_path)
 
+        if len(audio_files) == 0:
+            print("⚠️ No .flac files found! Check if dataset is correctly placed.")
+            return
+
+        print(f"Found {len(audio_files)} .flac files. Starting processing...")
+
+        # Process all collected audio files
+        for audio_path in tqdm(audio_files, desc="Processing Audio Files"):
+            # Preserve subfolder structure in output folder
+            relative_path = os.path.relpath(audio_path, self.input_folder)
+            output_path = os.path.join(self.output_folder, relative_path).replace(".flac", ".wav")
+
+            # Create corresponding subdirectories in output
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+            # Process and save the audio file
+            self.preprocess_audio(audio_path, output_path)
+
+        print("✅ Audio Preprocessing Completed Successfully!")
 
 if __name__ == "__main__":
-    input_folder = "../audio_samples/original_audio"
-    output_folder = "../audio_samples/processed_audio"
+    input_folder = r"C:\Users\Autom\PycharmProjects\DeepLearning\dataset\audio_samples\original_audio\LibriSpeech\train-clean-360"
+    output_folder = r"C:\Users\Autom\PycharmProjects\DeepLearning\dataset\audio_samples\processed_audio"
 
-    preprocessor = AudioPreprocessor(input_folder, output_folder)
-    preprocessor.preprocess_dataset()
+    processor = AudioPreprocessor(input_folder, output_folder)
+    processor.preprocess_dataset()
